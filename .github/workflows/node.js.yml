@@ -29,6 +29,3 @@ jobs:
     - run: npm ci
     - run: npm run build --if-present
     - run: npm run dev
-    - run: |
-          touch .env
-          echo "${{ secrets.PROD_ENV_FILE }}" > .env
