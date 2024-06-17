@@ -71,7 +71,6 @@ const generateAccessAndRefreshToken = async (userId) => {
 
 const loginUser = asyncHandler(async (req, res) => {
     const { email, username, password } = req.body
-    console.log(password);
     if (!username && !email) {
         throw new ApiError(404, 'Username or email is required');
     }
@@ -83,7 +82,7 @@ const loginUser = asyncHandler(async (req, res) => {
         throw new ApiError(404, "User with email or username not found")
     }
     const isPasswordCorrect = await user.isPasswordCorrect(password)
-    console.log(isPasswordCorrect);
+
 
     if (!isPasswordCorrect) {
         throw new ApiError(401, "Entered user password incorrect")
@@ -181,7 +180,7 @@ const changeUserPassword = asyncHandler(async (req, res) => {
     }
     const user = await User.findById(req.user?._id)
 
-    console.log("This is old", oldPassword)
+
 
     if (!user) {
         throw new ApiError(401, "Unauthorized Access")
