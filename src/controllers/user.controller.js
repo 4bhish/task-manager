@@ -203,7 +203,7 @@ const changeUserPassword = asyncHandler(async (req, res) => {
 })
 
 const getTheCurrentUser = asyncHandler(async (req, res) => {
-    const user = await findById(req.user._id).select("-refreshToken -password")
+    const user = await User.findById(req.user._id).select("-refreshToken -password")
 
     return res.status(201)
         .json(

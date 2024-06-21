@@ -1,4 +1,5 @@
 
+import mongoose from "mongoose";
 import { Task } from "../models/task.model.js";
 import { User } from "../models/user.models.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -26,18 +27,34 @@ const creatTask = asyncHandler(async (req, res) => {
         throw new ApiError(401, "Invalid access")
     }
 
-    await Task.create({
+    const newTask = await Task.create({
         title,
         description,
         taskImage: taskImage?.url || "",
         owner: owner._id
     })
 
+    if(!newTask){
+        throw new ApiError(500,"Failed to create task")
+    }
+
+    const updatedTasks = await Task.aggregate([
+        {
+            $match:{
+                owner:new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            $sort:{
+                updatedAt:-1
+            }
+        }
+    ])
 
     return res
         .status(201)
         .json(
-            new ApiResponse(200, "Task created successfully", {})
+            new ApiResponse(200, "Task created successfully", updatedTasks)
         )
 
 })
@@ -58,8 +75,8 @@ const updateTask = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id)
 
-    if(!task){
-        throw new ApiError(400,"Task is missing")
+    if (!task) {
+        throw new ApiError(400, "Task is missing")
     }
 
     if (task.owner !== req.user._id) {
@@ -83,102 +100,120 @@ const updateTask = asyncHandler(async (req, res) => {
 
 })
 
-const updateTaskImage = asyncHandler(async (req,res) => {
+const updateTaskImage = asyncHandler(async (req, res) => {
 
-    const {id} = req.params;
-    if(!id){
-        throw new ApiError(401,"Unauthorized access")
+    const { id } = req.params;
+    if (!id) {
+        throw new ApiError(401, "Unauthorized access")
     }
 
     const task = await Task.findById(id)
-    if(!task){
-        throw new ApiError(400,"task is missing")
+    if (!task) {
+        throw new ApiError(400, "task is missing")
     }
-    if(task.owner !== req.user._id){
-        throw new ApiError(403,"Forbidden access")
+    if (task.owner !== req.user._id) {
+        throw new ApiError(403, "Forbidden access")
     }
 
     let taskImageLocalPath
 
-    if(req.file){
+    if (req.file) {
         taskImageLocalPath = req.file.path
     }
 
-    if(!taskImageLocalPath){
-        throw new ApiError(400,"Failed to upload task image")
+    if (!taskImageLocalPath) {
+        throw new ApiError(400, "Failed to upload task image")
     }
 
     const taskImage = await uploadOnCloudinary(taskImageLocalPath)
 
-    if(!taskImage){
-        throw new ApiError(400,"Failed to upload task image")
+    if (!taskImage) {
+        throw new ApiError(400, "Failed to upload task image")
     }
 
-    const updatedTask = await Task.findByIdAndUpdate(task._id,{
-        $set:{
-            taskImage:taskImage.url
+    const updatedTask = await Task.findByIdAndUpdate(task._id, {
+        $set: {
+            taskImage: taskImage.url
         }
-    },{
-        new:true
+    }, {
+        new: true
     })
 
     return res
-    .status(201)
-    .json(
-        new ApiResponse(201,"Task Image uploaded successfully",updateTask)
-    )
+        .status(201)
+        .json(
+            new ApiResponse(201, "Task Image uploaded successfully", updateTask)
+        )
 })
 
 
-const deleteTask = asyncHandler(async(req,res)=>{
-    const {id} = req.params
+const deleteTask = asyncHandler(async (req, res) => {
+    const { id } = req.params
 
-    if(!id){
-        throw new ApiError(401,"Unauthorized access")
+    if (!id) {
+        throw new ApiError(401, "Unauthorized access")
     }
 
     const task = await Task.findById(id)
-    if(!task ){
-        throw new ApiError(400,"task is missing")
+    if (!task) {
+        throw new ApiError(400, "task is missing")
     }
 
-    if(task.owner !== req.user._id){
-        throw new ApiError(403,"Forbidden access")
+    if (task.owner.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "Forbidden access")
     }
 
-    await Task.findByIdAndDelete(task._id)
+    const deletedTask = await Task.findByIdAndDelete(task._id)
 
+    if (deletedTask._id.toString() !== id.toString()) {
+        throw new ApiError(409, "failed to delete task")
+    }
+
+    const updatedTask = await Task.aggregate([
+        {
+            $match: {
+                owner: new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            $sort: {
+                updatedAt:-1
+            }
+        }
+    ])
     return res
-    .status(200)
-    .json(
-        new ApiResponse(200,"Task Deleted Successfully",{})
-    )
+        .status(200)
+        .json(
+            new ApiResponse(200, "Task Deleted Successfully", updatedTask)
+        )
 })
 
-const deleteUserTasks = asyncHandler(async(req,res) => {
+const deleteUserTasks = asyncHandler(async (req, res) => {
 
-    const {ids} = req.body
+    const { ids } = req.body
 
-    if(!ids  || !Array.isArray(ids) || ids.length === 0){
-        throw new ApiError(400,"ids are missing")
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw new ApiError(400, "ids are missing")
     }
 
-    const tasks = await Task.find({_id:{$in:ids}})
+    const tasks = await Task.find({ _id: { $in: ids } })
     const userId = req.user._id
 
-    if(tasks.some(task => task.owner !== userId)){
-        throw new ApiError(403,"Forbidden access")
+    if (tasks.some(task => task.owner !== userId)) {
+        throw new ApiError(403, "Forbidden access")
     }
 
-    await Task.deleteMany({_id:{
-        $in:ids
-    }})
+    await Task.deleteMany({
+        _id: {
+            $in: ids
+        }
+    })
 
     return res
-    .status(200)
-    .json(
-        new ApiResponse(200,"All user tasks deleted successfully",{})
-    )
+        .status(200)
+        .json(
+            new ApiResponse(200, "All user tasks deleted successfully", {})
+        )
 
 })
 
