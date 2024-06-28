@@ -68,22 +68,23 @@ const updateTask = asyncHandler(async (req, res) => {
     }
 
     const { title, description } = req.body
+
     if ([title, description].some(field => field.trim() === "")) {
         throw new ApiError(400, "title and description is required")
     }
 
-
+    
     const task = await Task.findById(id)
 
     if (!task) {
         throw new ApiError(400, "Task is missing")
     }
 
-    if (task.owner !== req.user._id) {
+    if (task.owner.toString() !== req.user._id.toString()) {
         throw new ApiError(403, "Forbidden  access")
     }
 
-    const updatedTask = await Task.findByIdAndUpdate(task._id, {
+     await Task.findByIdAndUpdate(task._id, {
         $set: {
             title: title,
             description: description
@@ -91,6 +92,19 @@ const updateTask = asyncHandler(async (req, res) => {
     }, {
         new: true
     })
+
+    const updatedTask = await Task.aggregate([
+        {
+            $match: {
+                owner:new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            $sort: {
+                updatedAt:-1
+            }
+        }
+    ])
 
     return res
         .status(201)
